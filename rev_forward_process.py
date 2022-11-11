@@ -1,50 +1,17 @@
-import sys
-from mpl_toolkits import mplot3d
+import sys, os
 import numpy as np
 import matplotlib.pyplot as plt
-
-import os
-import re
+from mpl_toolkits import mplot3d
 from PIL import Image
 
-def natural_key(string_):
-    return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)]
-
-# saves images into a gif
-def gif_save(path, name):
-    pull_path = os.path.join(path)
-    ims = os.listdir(pull_path)   
-    ims = sorted(ims, key=natural_key)
-
-    # read files
-    video = []
-    for i, f in enumerate(ims):
-        file = os.path.join(pull_path, f)
-        frame = Image.open(file)
-        video.append(frame)
-        
-
-    # save gif
-    save_path = os.path.join(path, name+'.gif') 
-    video[0].save(save_path, format='gif',
-                   append_images=video[1:],
-                   save_all=True,
-                   duration=60, loop=0)   
-    return
-
-def f(x, y): return (-0.4*x*y + 0.225*x**2 + 0.35*y**3 + 0.25*np.sin(4*x + y)) - 0.4
-def sig(x): return 1/(1 + np.exp(-x))
+from utils import gif_save, natural_key, make_manifold
 
 if __name__ == '__main__':
-    # main here
-    r = 1	
-    n = 100
-    x = np.linspace(-r, r, 20)
-    y = np.linspace(-r, r, 20)
+    n = 100 # number of iterations in plotting
 
-    # make manifold
-    X, Y = np.meshgrid(x, y)
-    Z = f(X, Y)
+    b = 1 # domain bound
+    k = 20 # number of points in
+    X, Y, Z = make_manifold(b, k)
 
     # choose starting point
     x_0 = np.array([-0.5, -0.5, Z[5,5]])
@@ -58,12 +25,9 @@ if __name__ == '__main__':
         a = (1 - beta) * a_track[-1]
         a_track.append(a)
         x_track[i] = np.sqrt(1-beta) * x_track[i-1] + beta*np.random.randn(3)
+
     # flip around
     x_track = x_track[::-1]
-
-    #plt.plot(a_track)
-    #plt.show()
-    #sys.exit()
 
     # load image
     img = np.array(Image.open('hands.jpg'))
