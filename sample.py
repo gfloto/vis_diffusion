@@ -3,10 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from diff import Model, get_ab
-from utils import manifold, make_manifold
+from utils import manifold, make_manifold, gif_save
 
 # sample and save
-def sample():
+def sample(g):
     T = 100
     layers = 8
 
@@ -18,7 +18,9 @@ def sample():
     alpha, beta = get_ab(T)
 
     # get data
-    x = torch.randn((15, 3))
+    x = torch.randn((g, 3))
+    x[:g//2, [0,1]] += 2
+    x[g//2:, [0,1]] -= 2
     store = [x.numpy()]
     for t in range(T-1, -1, -1):
         with torch.no_grad():
@@ -37,7 +39,7 @@ def sample():
             f1 = 1 / np.sqrt(1-b)
             f2 = (1 - (1-b)) / np.sqrt(1-a)
             sig = np.sqrt( (1 - alpha[t-1]) / (1 - alpha[t]) * b )
-            x = f1*(x -  f2*eps) + 0.75 * sig * z
+            x = f1*(x -  f2*eps) + sig*z
             
             store.append(x.detach().numpy())
 
@@ -49,10 +51,12 @@ def sample():
     np.save('out.npy', out)
 
 if __name__ == '__main__':
-    sample()
+    g = 50
+    sample(g)
     x = np.load('out.npy') 
 
-    b = 1 # domain bound
+    d = 3 # for plotting
+    b = 3 # domain bound
     k = 20 # number of points in
     X, Y, Z = make_manifold(b, k)
 
@@ -61,15 +65,21 @@ if __name__ == '__main__':
         # setup plots
         fig = plt.figure(figsize=(10,10))
         ax1 = fig.add_subplot(111, projection='3d')
-        ax1.view_init(elev=50 - 0.25*a, azim=-125 + 0.375*a)
-        ax1.set(xlim=(-1.5, 1.5), ylim=(-1.5, 1.5), zlim=(-1.5, 1.5))
+        ax1.view_init(elev=25 + 0.25*a, azim=45 + 0.375*a)
+        ax1.set(xlim=(-d, d), ylim=(-d, d), zlim=(-d-2, d+2))
         ax1.set_box_aspect([1,1,1])
 
         k = max(0, i-10)
         ax1.plot_wireframe(X, Y, Z, color='k')
-        ax1.scatter(x[i,:,0], x[i,:,1], x[i,:,2], color='b')
+        ax1.scatter(x[i,:g//2,0], x[i,:g//2,1], x[i,:g//2,2], color='b')
+        ax1.scatter(x[i,g//2:,0], x[i,g//2:,1], x[i,g//2:,2], color='g')
         for j in range(x.shape[1]):
-            ax1.plot(x[k:i+1,j,0], x[k:i+1,j,1], x[k:i+1,j,2], color='dodgerblue', linewidth=2)
+            col = 'dodgerblue' if j < g//2 else 'limegreen'
+            ax1.plot(x[k:i+1,j,0], x[k:i+1,j,1], x[k:i+1,j,2], color=col, linewidth=2)
+            ax1.plot(x[k:i+1,j,0], x[k:i+1,j,1], x[k:i+1,j,2], color=col, linewidth=2)
 
-        plt.savefig('imgs2/img_{}.png'.format(a))
+        plt.savefig('imgs/img_{}.png'.format(a))
         plt.close()
+    
+    gif_save('imgs', 'diffusion')
+        

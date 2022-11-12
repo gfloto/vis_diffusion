@@ -5,14 +5,7 @@ import matplotlib.pyplot as plt
 import torch.nn as nn
 import torch.optim as optim
 
-from utils import manifold
-
-# dataset for training
-def get_points(n):
-    x = 3*torch.rand(n) - 1.5
-    y = 3*torch.rand(n) - 1.5
-    z = manifold(x,y)
-    return torch.stack((x,y,z)).T
+from utils import manifold, get_points
 
 # get noise levels, assuming that sigma is beta
 def get_ab(n):
@@ -59,40 +52,53 @@ class Q:
     def __init__(self, alpha, beta, T, device):
         self.alpha = torch.tensor(alpha).to(device)
         self.beta = torch.tensor(beta).to(device)
-        self.c = self.beta / (2*(1 - self.beta)*(1 - self.alpha)) # weight for loss
         self.T = 100
+        #self.c = self.beta / (2*(1 - self.beta)*(1 - self.alpha)) # weight for loss
 
     # return sample and weight for loss
-    def sample(self, x, eps, t):
+    def sample(self, x, eps, t, c, device):
         a = self.alpha[t]
-        return torch.sqrt(a)*x + torch.sqrt(1 - a)*eps, self.c[t]
+        y = torch.ones_like(x).to(device)
+        y[:,2] = 0
+        return torch.sqrt(a)*x + y*torch.sqrt(1 - a) + (1 - a)*eps
 
 # single pass of the dataset
 def single_pass(data, model, opt, q, device, batch_size=10):
     loss_track = []
+    (data1, data2) = data
+
     # NOTE: a single pass is over the data where t is random
     # indicies for shuffling dataset
-    inds = torch.randperm(data.shape[0])
-    for i in range((data.shape[0] // batch_size)):
+    inds = torch.randperm(data1.shape[0])
+    for i in range((data1.shape[0] // batch_size)):
         if i % q.T == 0: times = torch.randperm(q.T)
 
         # get next batch
         t = times[i%q.T]
         ind = inds[i: i+batch_size]
-        x = data[inds]
+        x1 = data1[inds]
+        x2 = data2[inds]
         
         # get xt
-        eps = torch.randn_like(x).to(device)
-        (xt, c) = q.sample(x, eps, t)
+        eps1 = torch.randn_like(x1).to(device)
+        eps2 = torch.randn_like(x2).to(device)
+        xt1 = q.sample(x1, eps1, t, 1, device)
+        xt2 = q.sample(x2, eps2, t, -1, device)
 
         # stack t to make model conditioned on time step
-        t_stack = t * torch.ones((xt.shape[0], 1)).to(device)
-        xt = torch.hstack((xt, t_stack))
+        t_stack1 = t * torch.ones((xt1.shape[0], 1)).to(device)
+        t_stack2 = t * torch.ones((xt2.shape[0], 1)).to(device)
+        xt1 = torch.hstack((xt1, t_stack1))
+        xt2 = torch.hstack((xt2, t_stack2))
         
         # pass
         opt.zero_grad()
-        z = model(xt)
-        loss = torch.mean((eps - z)**2)
+        z1 = model(xt1)
+        z2 = model(xt2)
+
+        loss1 = torch.mean((eps1 - z1)**2)
+        loss2 = torch.mean((eps2 - z2)**2)
+        loss = (loss1 + loss2) / 2
 
         loss.backward()
         opt.step()
@@ -102,7 +108,7 @@ def single_pass(data, model, opt, q, device, batch_size=10):
 
 if __name__ == '__main__':
     T = 100
-    n = 10000
+    n = 1000
     layers = 8
     epochs = 100
     assert n % epochs == 0
@@ -110,7 +116,7 @@ if __name__ == '__main__':
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     # load data
-    data = get_points(n)
+    (data1, data2) = get_points(n)
 
     # build model + get optimizer
     model = Model(layers)
@@ -118,7 +124,9 @@ if __name__ == '__main__':
 
     # to device
     model = model.to(device)
-    data = data.to(device)
+    data1 = data1.to(device)
+    data2 = data2.to(device)
+    data = (data1, data2)
 
     # get beta and alpha for q network
     alpha, beta = get_ab(T)

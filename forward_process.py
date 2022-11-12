@@ -7,7 +7,7 @@ from PIL import Image
 from utils import gif_save, natural_key, make_manifold, manifold, make_sphere
 
 if __name__ == '__main__':
-    gif_save('imgs', 'diffusion')
+    gif_save('imgs2', 'diffusion')
     sys.exit()
     #n = 100 # number of iterations in plotting
 

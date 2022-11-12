@@ -1,6 +1,34 @@
-import sys, os, re
+import sys, os, re, torch
 import numpy as np
 from PIL import Image
+
+# dataset for training
+def get_points_(n):
+    x = 3*torch.rand(n) - 1.5
+    y = 3*torch.rand(n) - 1.5
+    z = manifold(x,y)
+    return torch.stack((x,y,z)).T
+
+# sample point according to mixture of gaussian
+def get_points(n):
+    # sample from each mixture w same prob
+    x1 = torch.randn(n)
+    x2 = torch.randn(n)
+    y1 = torch.randn(n)
+    y2 = torch.randn(n)
+    
+    # add offsets
+    d = torch.ones_like(x1)
+
+    # apply offset
+    x1 += d
+    x2 -= d
+    y1 += d
+    y2 -= d
+
+    z1 = manifold(x1, y1)
+    z2 = manifold(x2, y2)
+    return (torch.stack((x1, y1, z1)).T, torch.stack((x2, y2, z2)).T)
 
 # make sphere for plotting forward process
 def make_sphere(spot, r):
@@ -24,7 +52,7 @@ def make_manifold(r, n):
 
 # example of latent manifold in 3d space
 def manifold(x, y): 
-    return (-0.4*x*y + 0.225*x**2 + 0.35*y**3 + 0.25*np.sin(4*x + y)) - 0.4
+    return (-0.2*x*y + 0.25*np.sin(2*x + y)) - 0.015*y**3 * x
 
 # sorts keys according to alpha numeric
 def natural_key(string_):
@@ -41,9 +69,9 @@ def gif_save(path, name):
     for i, f in enumerate(ims):
         file = os.path.join(pull_path, f)
         frame = Image.open(file)
-        if i == 0 or i == len(ims) - 1:
-            for _ in range(14):
-                video.append(frame)
+        #if i == 0 or i == len(ims) - 1:
+        #    for _ in range(14):
+                #video.append(frame)
         video.append(frame)
         
 
