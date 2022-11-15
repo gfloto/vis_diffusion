@@ -60,7 +60,7 @@ class Q:
         a = self.alpha[t]
         y = torch.ones_like(x).to(device)
         y[:,2] = 0
-        return torch.sqrt(a)*x + y*torch.sqrt(1 - a) + (1 - a)*eps
+        return torch.sqrt(a)*x + c*y*torch.sqrt(1 - a) + (1 - a)*eps
 
 # single pass of the dataset
 def single_pass(data, model, opt, q, device, batch_size=10):

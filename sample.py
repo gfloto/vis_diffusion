@@ -5,6 +5,32 @@ import matplotlib.pyplot as plt
 from diff import Model, get_ab
 from utils import manifold, make_manifold, gif_save
 
+# idk
+def get_w(beta, s, t):
+    a = 1 - beta
+    q = a[s:]
+    return torch.prod(q)
+
+# get denom of gamma function
+def calc_omega(beta, t):
+    w = 0
+    for s in range(t):
+        kk = get_w(beta, s+1, t)
+        w += torch.sqrt(kk)
+    return w
+
+# sample using idea method
+def omega_sample(alpha, beta, t):
+    e = beta[t]
+    g = 1 - beta[t]
+    f = 1 - alpha[t]
+    f1 = 1 - alpha[t-1]
+    w = calc_omega(beta, t)
+    gamma = np.sqrt(f) / w
+
+    out = (e*torch.sqrt(f1) - e*torch.sqrt(f/g) - gamma*f1*torch.sqrt(f*g)) / f
+    return out 
+
 # sample and save
 def sample(g):
     T = 100
@@ -19,8 +45,8 @@ def sample(g):
 
     # get data
     x = torch.randn((g, 3))
-    x[:g//2, [0,1]] += 2
-    x[g//2:, [0,1]] -= 2
+    x[:g//2, [0,1]] += 1
+    x[g//2:, [0,1]] -= 1
     store = [x.numpy()]
     for t in range(T-1, -1, -1):
         with torch.no_grad():
@@ -35,11 +61,20 @@ def sample(g):
             a = alpha[t]
             b = beta[t]
 
-            # update
+            # classic update
             f1 = 1 / np.sqrt(1-b)
-            f2 = (1 - (1-b)) / np.sqrt(1-a)
+            f2 = b / np.sqrt(1-a)
             sig = np.sqrt( (1 - alpha[t-1]) / (1 - alpha[t]) * b )
-            x = f1*(x -  f2*eps) + sig*z
+            
+            # idea
+            y = torch.ones_like(x)
+            y[:,2] = 0
+            y[:g//2, [0,1]] *= 1
+            y[g//2:, [0,1]] -= 1
+            omega = omega_sample(alpha, beta, t)
+
+            # update 
+            x = f1*(x -  f2*eps) + omega*y#+ sig*z
             
             store.append(x.detach().numpy())
 
