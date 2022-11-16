@@ -2,15 +2,8 @@ import sys, os, re, torch
 import numpy as np
 from PIL import Image
 
-# dataset for training
-def get_points_(n):
-    x = 3*torch.rand(n) - 1.5
-    y = 3*torch.rand(n) - 1.5
-    z = manifold(x,y)
-    return torch.stack((x,y,z)).T
-
 # sample point according to mixture of gaussian
-def get_points(n):
+def get_points(n, k):
     # sample from each mixture w same prob
     x1 = torch.randn(n)
     x2 = torch.randn(n)
@@ -18,7 +11,7 @@ def get_points(n):
     y2 = torch.randn(n)
     
     # add offsets
-    d = torch.ones_like(x1)
+    d = k * torch.ones_like(x1)
 
     # apply offset
     x1 += d

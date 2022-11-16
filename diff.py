@@ -42,6 +42,12 @@ class Model(nn.Module):
             self.layers.append(Layer(self.mid, self.mid))
         self.layers.append(nn.Linear(self.mid, self.dim-1))
 
+        # get trainable k
+        kn = torch.randn((2, 3))
+        leng = torch.linalg.norm(kn, axis=1, keepdim=True)
+        kn = (3*kn / leng) + 0.1*torch.randn((3))
+        self.kn = nn.Parameter(kn.clone().detach().requires_grad_(True).to('cuda'))
+
     def forward(self, x):
         for layer in self.layers:
             x = layer(x)
@@ -56,11 +62,10 @@ class Q:
         #self.c = self.beta / (2*(1 - self.beta)*(1 - self.alpha)) # weight for loss
 
     # return sample and weight for loss
-    def sample(self, x, eps, t, c, device):
+    def sample(self, x, eps, t, kn, i, device):
         a = self.alpha[t]
-        y = torch.ones_like(x).to(device)
-        y[:,2] = 0
-        return torch.sqrt(a)*x + c*y*torch.sqrt(1 - a) + (1 - a)*eps
+        out = torch.sqrt(a)*x + kn[i]*torch.sqrt(1 - a) + (1 - a)*eps 
+        return out 
 
 # single pass of the dataset
 def single_pass(data, model, opt, q, device, batch_size=10):
@@ -82,8 +87,8 @@ def single_pass(data, model, opt, q, device, batch_size=10):
         # get xt
         eps1 = torch.randn_like(x1).to(device)
         eps2 = torch.randn_like(x2).to(device)
-        xt1 = q.sample(x1, eps1, t, 1, device)
-        xt2 = q.sample(x2, eps2, t, -1, device)
+        xt1 = q.sample(x1, eps1, t, model.kn, 0, device)
+        xt2 = q.sample(x2, eps2, t, model.kn, 1, device)
 
         # stack t to make model conditioned on time step
         t_stack1 = t * torch.ones((xt1.shape[0], 1)).to(device)
@@ -95,11 +100,18 @@ def single_pass(data, model, opt, q, device, batch_size=10):
         opt.zero_grad()
         z1 = model(xt1)
         z2 = model(xt2)
+        #print(z1[0].detach().cpu(), xt1[0].detach().cpu())
 
+        # loss
         loss1 = torch.mean((eps1 - z1)**2)
         loss2 = torch.mean((eps2 - z2)**2)
-        loss = (loss1 + loss2) / 2
 
+        leng = torch.linalg.norm(model.kn, axis=1)
+        kn_loss = torch.mean((leng - 3)**2)
+        diff_loss = (loss1 + loss2) / 2
+
+        #loss = diff_loss #+ kn_loss
+        loss = kn_loss
         loss.backward()
         opt.step()
 
@@ -116,11 +128,10 @@ if __name__ == '__main__':
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     # load data
-    (data1, data2) = get_points(n)
+    (data1, data2) = get_points(n, k=1)
 
     # build model + get optimizer
     model = Model(layers)
-    opt = optim.Adam(model.parameters(), lr=1e-3)
 
     # to device
     model = model.to(device)
@@ -132,10 +143,22 @@ if __name__ == '__main__':
     alpha, beta = get_ab(T)
     q = Q(alpha, beta, T, device)
 
+    # optimizer
+    print(model.parameters)
+    sys.exit()
+    opt = optim.Adam(model.parameters(), lr=1e-3)
+
     # main loop
     for e in range(epochs):
         loss = single_pass(data, model, opt, q, device)
+        #kn_track.append(kn.detach().cpu().numpy())
+        print(model.kn)
         print(loss)
 
     torch.save(model.state_dict(), 'model.pt')
+    #torch.save(kn, 'kn.pt')
+    #kn_track = np.array(kn_track)
+    #print(kn_track)
+    #np.save('kn_track.npy', kn_track)
+    print('done')
 
