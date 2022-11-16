@@ -36,17 +36,12 @@ class Model(nn.Module):
         self.dim = 4 # to include the time
         self.mid = 10
         self.n_layers = n_layers
+        self.kn = nn.Parameter(2*torch.randn(2,3), requires_grad=True)
 
         self.layers = nn.ModuleList([Layer(self.dim, self.mid)])
         for _ in range(n_layers - 2):
             self.layers.append(Layer(self.mid, self.mid))
         self.layers.append(nn.Linear(self.mid, self.dim-1))
-
-        # get trainable k
-        kn = torch.randn((2, 3))
-        leng = torch.linalg.norm(kn, axis=1, keepdim=True)
-        kn = (3*kn / leng) + 0.1*torch.randn((3))
-        self.kn = nn.Parameter(kn.clone().detach().requires_grad_(True).to('cuda'))
 
     def forward(self, x):
         for layer in self.layers:
@@ -107,11 +102,10 @@ def single_pass(data, model, opt, q, device, batch_size=10):
         loss2 = torch.mean((eps2 - z2)**2)
 
         leng = torch.linalg.norm(model.kn, axis=1)
-        kn_loss = torch.mean((leng - 3)**2)
+        kn_loss = torch.mean((leng - 5)**2)
         diff_loss = (loss1 + loss2) / 2
 
-        #loss = diff_loss #+ kn_loss
-        loss = kn_loss
+        loss = diff_loss + kn_loss
         loss.backward()
         opt.step()
 
@@ -122,7 +116,7 @@ if __name__ == '__main__':
     T = 100
     n = 1000
     layers = 8
-    epochs = 100
+    epochs = 500
     assert n % epochs == 0
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -144,21 +138,18 @@ if __name__ == '__main__':
     q = Q(alpha, beta, T, device)
 
     # optimizer
-    print(model.parameters)
-    sys.exit()
-    opt = optim.Adam(model.parameters(), lr=1e-3)
+    opt = optim.Adam(model.parameters(), lr=5e-4)
 
     # main loop
+    kn_track = [model.kn.detach().cpu().numpy()]
     for e in range(epochs):
         loss = single_pass(data, model, opt, q, device)
-        #kn_track.append(kn.detach().cpu().numpy())
-        print(model.kn)
+        kn_track.append(model.kn.detach().cpu().numpy())
         print(loss)
+        print(kn_track[-1])
 
     torch.save(model.state_dict(), 'model.pt')
-    #torch.save(kn, 'kn.pt')
-    #kn_track = np.array(kn_track)
-    #print(kn_track)
-    #np.save('kn_track.npy', kn_track)
+    kn_track = np.array(kn_track)
+    np.save('kn_track.npy', kn_track)
     print('done')
 

@@ -58,7 +58,9 @@ def sample(n):
     # load model
     model = Model(layers)
     model.load_state_dict(torch.load('model.pt'))
-    kn = torch.load('kn.pt')
+    kn = np.load('kn_track.npy')
+    kn = kn[-1]
+    print(kn)
 
     # for sampling coeffs
     alpha, beta = get_ab(T)
@@ -68,9 +70,9 @@ def sample(n):
 
     # get data
     x = torch.randn((n, 3))
-    x[:n//2] += 2.7
-    x[n//2:] -= 2.7
-    store = [x.numpy()]
+    x[:n//2] += kn[0]
+    x[n//2:] += kn[1]
+    store = [x.detach().numpy()]
     for t in range(T-1, -1, -1):
         with torch.no_grad():
             # stack t to make model conditioned on time step
@@ -90,15 +92,15 @@ def sample(n):
             
             # fokker planck addition
             y = torch.ones_like(x)
-            y[:n//2] *= 3
-            y[n//2:] *= -3
+            y[:n//2] *= kn[0]
+            y[n//2:] *= kn[1]
             
             g = gamma.get(t)
             #print(f1, eps[0], g*y[0])
 
             # update, NOTE: this should be + !!! 
-            x = f1*(x -  f2*eps) - g*y #+ sig*z
-            print(x_inp[0].numpy(), x[0].numpy(), eps[0].numpy(), g*y[0].numpy(), f1, f2)
+            x = f1*(x -  f2*eps) - g*y #+ 0.75*sig*z
+            #print(x_inp[0].numpy(), x[0].numpy(), eps[0].numpy(), g*y[0].numpy(), f1, f2)
             store.append(x.detach().numpy())
 
     #score = np.abs(x[:,2] - manifold(x[:,1], x[:,2]))
