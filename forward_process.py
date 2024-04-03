@@ -1,119 +1,96 @@
-import sys, os
+import os
 import numpy as np
-import plotly.express as px
+from tqdm import tqdm
 import plotly.graph_objects as go
-from PIL import Image
+import matplotlib.pyplot as plt
 
-from utils import gif_save, natural_key, make_manifold, manifold, make_sphere
+from utils import gif_save, make_manifold, manifold, make_sphere
 
 if __name__ == '__main__':
-    gif_save('imgs2', 'diffusion')
-    sys.exit()
-    #n = 100 # number of iterations in plotting
+    num_points = 25 # number of points on manifold
+    num_frames = 100 # number of frames to plot for forward process
+    img_size = 400
 
-    b = 1 # domain bound
-    k = 20 # number of points
-    X, Y, Z = make_manifold(b, k)
+    domain_size = 1 # plotting domain 
+    domain_points = 20 # number of points to cross
+    X, Y, Z = make_manifold(domain_size, domain_points)
 
-    # choose starting points
-    m = 25
-    z = 2*np.random.rand(m, 3) - 1
-    for i in range(m):
+    # make random points on manifold surface 
+    z = 2 * np.random.rand(num_points, 3) - 1
+    for i in range(num_points):
         z[i, 2] = manifold(z[i,0], z[i,1])
 
     # colors
     colors = ['Blues', 'Greens', 'Oranges', 'Purples', 'Reds', 'Brwnyl', 'Burg', 'Mint']
-    c = np.random.randint(0, len(colors), size=(m))
+    c = np.random.randint(0, len(colors), size=(num_points))
 
-    # plotting
-    a_track = [1]
-    for i in range(1, n):
-        # important: setting the beta term
-        beta = 1e-4 + (i-1)*(0.1 - 1e-4)/(n-2)
-        a = (1 - beta) * a_track[-1]
-        a_track.append(a)
-        
-        data = [go.Surface(x=X, y=Y, z=Z, colorscale='Greys')]
+    os.makedirs('imgs', exist_ok=True)
+    os.makedirs('videos', exist_ok=True)
 
-        #fig = plt.figure(figsize=(8,8))
-        #ax = fig.add_subplot(111, projection='3d')
-        #ax.view_init(elev=30 + -0.15*i, azim=-125 + 0.375*i)
-        #ax.set(xlim=(-1.5, 1.5), ylim=(-1.5, 1.5), zlim=(-1.5, 1.5))
-        #ax.set_box_aspect([1,1,1])
+    # main plotting loop
+    frame_count = 0
+    alpha_track = [1]
+    for i in tqdm(range(num_frames)):
+        # diffusion schedule
+        beta = 1e-4 + i * (0.1 - 1e-4) / (num_frames)
+        alpha = (1 - beta) * alpha_track[-1]
+        alpha_track.append(alpha)
 
-        #ax.plot_wireframe(X, Y, Z, color='k')
-        #ax.scatter(z[:,0], z[:,1], z[:,2])
+        # plot manifold surface         
+        data = [go.Surface(
+            x=X,
+            y=Y,
+            z=Z, 
+            colorscale='Greys',
+            showscale=False,
+        )]
 
-        # plot sphere
-        for j in range(m):
-            (xs, ys, zs) = make_sphere(np.sqrt(a_track[-1]) * z[j], np.sqrt(1 - a_track[-1]))
-            data.append(go.Surface(x=xs, y=ys, z=zs, colorscale=colors[c[j]]))
-            spot = np.random.randint(len(colors))
-            #fig.plot_surface(xs, ys, zs)
+        # plot sphere (represent std. dev.)
+        for j in range(num_points):
+            (xs, ys, zs) = make_sphere(np.sqrt(alpha_track[-1]) * z[j], np.sqrt(1 - alpha_track[-1]))
+            data.append(
+                go.Surface(
+                    x=xs,
+                    y=ys,
+                    z=zs,
+                    colorscale=colors[c[j]],
+                    showscale=False,
+                )
+            )
+
         fig = go.Figure(data=data)
-        fig.update_layout( autosize=False, width=800, height=800,)
-        fig.write_image('imgs/img_{}.png'.format(i))
 
-        #plt.savefig('imgs2/img_{}.png'.format(i))
-        #plt.close()
+        # set camera angle
+        fig.update_layout(
+            scene=dict(
+                camera=dict(
+                    eye=dict(x=1.25, y=1.25, z=1.75)
+                )
+            )
+        )
 
-    gif_save('imgs', 'diffusion')
-    sys.exit()
-##############################################################
+        fig.update_layout(
+            autosize=False,
+            width=img_size,
+            height=img_size,
+            margin=dict(l=0, r=0, b=0, t=0),
+        )
 
-    # load forward process
-    for i in range(1, n):
-        beta = 1e-4 + (i-1)*(0.1 - 1e-4)/(n-2)
-        a = (1 - beta) * a_track[-1]
-        a_track.append(a)
-        x_track[i] = np.sqrt(1-beta) * x_track[i-1] + beta*np.random.randn(3)
-
-    # flip around
-    x_track = x_track[::-1]
-
-    # load image
-    img = np.array(Image.open('hands.jpg'))
-    for i in range(n-1):
         # setup plots
         fig = plt.figure(figsize=(16,8))
         ax1 = fig.add_subplot(121, projection='3d')
         ax2 = fig.add_subplot(122)
         ax1.view_init(elev=30 + -0.15*i, azim=-125 + 0.375*i)
 
-        ax1.plot_wireframe(X, Y, Z, color='k')
-        ax1.scatter(x_track[i,0], x_track[i,1], x_track[i,2], color='b')
-        ax1.scatter(x_0[0], x_0[1], x_0[2], color='r')
-        ax1.plot(x_track[:i+1,0], x_track[:i+1,1], x_track[:i+1,2], color='dodgerblue', linewidth=2)
-
-        img_noise = 3*255 * np.linalg.norm(x_track[i] - x_0) * np.random.randn(img.shape[0], img.shape[1]) + img
-
-        ax2.imshow(img_noise, cmap='gray')
-        ax2.axis('off')
-
-        plt.savefig('imgs/img_{}.png'.format(i))
+        # save both images
+        if i == 0:
+            # plot a few static frames at the beginning of the gif...
+            for _ in range(1):
+                fig.write_image(f'imgs/img_{frame_count}.png')
+                frame_count += 1
+        else:
+            fig.write_image(f'imgs/img_{frame_count}.png')
+            frame_count += 1
         plt.close()
 
-    # plot still frame
-    for k in range(99, 125):
-        i = 99
-        # setup plots
-        fig = plt.figure(figsize=(16,8))
-        ax1 = fig.add_subplot(121, projection='3d')
-        ax2 = fig.add_subplot(122)
-        ax1.view_init(elev=30 + -0.15*k, azim=-125 + 0.375*k)
-
-        ax1.plot_wireframe(X, Y, Z, color='k')
-        ax1.scatter(x_track[i,0], x_track[i,1], x_track[i,2], color='b')
-        ax1.scatter(x_0[0], x_0[1], x_0[2], color='r')
-        ax1.plot(x_track[:i+1,0], x_track[:i+1,1], x_track[:i+1,2], color='dodgerblue', linewidth=2)
-
-        img_noise = 3*255 * np.linalg.norm(x_track[i] - x_0) * np.random.randn(img.shape[0], img.shape[1]) + img
-
-        ax2.imshow(img_noise, cmap='gray')
-        ax2.axis('off')
-
-        plt.savefig('imgs/img_{}.png'.format(k))
-        plt.close()
-
-
-    gif_save('imgs', 'diffusion')
+    gif_save('imgs', 'videos/forward_sphere.gif')

@@ -52,7 +52,7 @@ def natural_key(string_):
     return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)]
 
 # saves images into a gif
-def gif_save(path, name):
+def gif_save(path, save_path):
     pull_path = os.path.join(path)
     ims = os.listdir(pull_path)   
     ims = sorted(ims, key=natural_key)
@@ -69,9 +69,12 @@ def gif_save(path, name):
         
 
     # save gif
-    save_path = os.path.join(path, name+'.gif') 
     video[0].save(save_path, format='gif',
                    append_images=video[1:],
                    save_all=True,
                    duration=60, loop=0)   
+
+    # remove files in directory
+    for f in ims:
+        os.remove(os.path.join(pull_path, f))
     return
