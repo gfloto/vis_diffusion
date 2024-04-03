@@ -1,4 +1,6 @@
-import sys, os, re, torch
+import os
+import re
+import torch
 import numpy as np
 from PIL import Image
 
