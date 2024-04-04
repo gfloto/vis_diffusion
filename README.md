@@ -1,5 +1,5 @@
 # Diffusion Visualization 
-Some code to visualize the forward and reverse diffusion process. Here, we plot a surface intended to represent the underlying data distribution, in accordance with the manifold hypothesis for images.
+Some code to visualize the forward and reverse diffusion process in [presentations](https://github.com/gfloto/presentations) I've given. Here, we plot a surface intended to represent the underlying data distribution, in accordance with the manifold hypothesis for images.
 
 Plot representing the forward and reverse process are visualized. The intention here is to include these in presentations to aid in the explanation of the diffusion process.
 
